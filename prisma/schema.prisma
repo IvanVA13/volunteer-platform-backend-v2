@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
@@ -14,8 +11,86 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  VOLUNTEER
+  USER
+  ADMIN
+}
+
+enum HelpCategory {
+  MEDICAL
+  FOOD
+  TRANSPORT
+  CLOTHING
+  SHELTER
+  OTHER
+}
+
+enum RequestStatus {
+  ACTIVE
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
 model User {
-  id String @id() @default(uuid())
-  email String
-  password String
+  id            String      @id @default(uuid())
+  email         String      @unique
+  password      String
+  name          String
+  phone         String      @unique
+  city          String
+  role          Role        @default(USER)
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  requests      Request[]
+  responses     Response[]
+
+  refreshToken  String? @default("")
+
+  @@index([email])
+  @@index([city])
+  @@map("users")
+}
+
+model Request {
+  id            String          @id @default(uuid())
+  title         String
+  description   String
+  category      HelpCategory
+  city          String
+  status        RequestStatus   @default(ACTIVE)
+
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  responses     Response[]
+
+  @@index([status])
+  @@index([category])
+  @@index([city])
+  @@index([userId])
+  @@map("requests")
+}
+
+model Response {
+  id            String      @id @default(uuid())
+
+  requestId     String
+  request       Request     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  volunteerId   String
+  volunteer     User        @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime    @default(now())
+
+  @@unique([requestId, volunteerId])
+  @@index([requestId])
+  @@index([volunteerId])
+  @@map("responses")
 }
