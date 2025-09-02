@@ -5,8 +5,7 @@ import {
     MaxLength,
     MinLength,
 } from 'class-validator'
-
-import { Category } from 'generated/prisma'
+import { HelpCategory } from 'generated/prisma'
 
 export class CreateRequestDto {
     @MinLength(5)
@@ -19,8 +18,8 @@ export class CreateRequestDto {
     @IsString()
     description: string
 
-    @IsEnum(Category)
-    category: Category
+    @IsEnum(HelpCategory)
+    category: HelpCategory
 
     @IsString()
     @IsNotEmpty()

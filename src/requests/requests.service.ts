@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common'
 
-import { DbService } from 'src/db/db.service'
 import {
     CreateRequestDto,
     QueryRequestDto,
@@ -10,10 +9,11 @@ import {
 import { DEFAULT_LIMIT, DEFAULT_PAGE } from './constants'
 import { RequestOrderBy, SortOrder } from './types'
 import { Prisma } from 'generated/prisma'
+import { PrismaService } from 'src/prisma.service'
 
 @Injectable()
 export class RequestsService {
-    constructor(private readonly dbService: DbService) {}
+    constructor(private readonly dbService: PrismaService) {}
     async getRequests(query: QueryRequestDto) {
         const {
             page = DEFAULT_PAGE,
