@@ -1,5 +1,5 @@
 const environment = {
-  PORT: process.env.PORT || 3000,
-};
+    PORT: process.env.PORT || 3000,
+}
 
-export default environment;
+export default environment
