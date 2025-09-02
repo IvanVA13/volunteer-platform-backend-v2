@@ -7,7 +7,7 @@ import {
 import { Request } from 'express'
 import { JwtService } from '@nestjs/jwt'
 import { Reflector } from '@nestjs/core'
-import environment from 'src/enviroments'
+import environment from 'src/environments'
 import { Role, User } from '../../../generated/prisma'
 import { ROLES_KEY } from 'src/decorators/roles.decorator'
 

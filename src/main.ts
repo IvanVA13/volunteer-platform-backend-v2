@@ -4,7 +4,7 @@ import { ValidationPipe } from '@nestjs/common'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 
 import { AppModule } from './app.module'
-import environment from 'src/enviroments'
+import environment from 'src/environments'
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule)

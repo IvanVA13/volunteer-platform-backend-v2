@@ -7,7 +7,7 @@ import {
     NotFoundException,
 } from '@nestjs/common'
 
-import enviroments from 'src/enviroments'
+import environments from 'src/environments'
 import { User } from '../../generated/prisma'
 import { PrismaService } from 'src/prisma.service'
 import { CreateUserDto } from './dto/create-user.dto'
@@ -28,7 +28,7 @@ export class UsersService {
         password,
         phoneNumber,
     }: CreateUserDto) {
-        const salt = await bcrypt.genSalt(Number(enviroments.SALT_PASSWORD))
+        const salt = await bcrypt.genSalt(Number(environments.SALT_PASSWORD))
 
         const passwordHash: string = bcrypt.hashSync(password, salt)
 
@@ -52,7 +52,7 @@ export class UsersService {
 
         const hashedToken = bcrypt.hashSync(
             refreshToken,
-            Number(enviroments.SALT_PASSWORD)
+            Number(environments.SALT_PASSWORD)
         )
 
         await this.prisma.user.update({

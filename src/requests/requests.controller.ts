@@ -6,17 +6,25 @@ import {
     ParseUUIDPipe,
     Patch,
     Post,
-    Query,
+    UseGuards,
 } from '@nestjs/common'
+
+import { Role } from 'generated/prisma'
 import { RequestsService } from './requests.service'
+
 import {
     CreateRequestDto,
     QueryRequestDto,
     UpdateRequestDto,
     UpdateRequestStatusDto,
 } from './dto'
-import { SoftQuery, StrictBody } from 'src/common/pipes'
 
+import { SoftQuery, StrictBody } from 'src/common/pipes'
+import { AuthGuard } from 'src/users/guard/auth.guard'
+import { Roles } from 'src/decorators/roles.decorator'
+import { CurrentUser, IUser } from 'src/decorators/current-user.decorator'
+
+@UseGuards(AuthGuard)
 @Controller('requests')
 export class RequestsController {
     constructor(private readonly requestsService: RequestsService) {}
@@ -26,11 +34,8 @@ export class RequestsController {
     }
 
     @Get('my')
-    async getUserRequests() {
-        // TODO: get user id from auth token, remove from query
-        // const userId = query.id
-        const userId = '6ec9aa6a-936f-488d-ae45-94f23cc4b8b9'
-        return await this.requestsService.getUserRequests(userId)
+    async getUserRequests(@CurrentUser() user: IUser) {
+        return await this.requestsService.getUserRequests(user.id)
     }
 
     @Get(':id')
@@ -41,14 +46,13 @@ export class RequestsController {
     @Post()
     async createRequest(
         @StrictBody() data: CreateRequestDto,
-        @Query('id', new ParseUUIDPipe()) id: string
+        @CurrentUser() user: IUser
     ) {
-        // TODO: get user id from auth token, remove from query
-        const userId = id
-        return await this.requestsService.createRequest(userId, data)
+        return await this.requestsService.createRequest(user.id, data)
     }
 
     @Patch(':id')
+    @Roles(Role.USER)
     async updateRequest(
         @StrictBody() data: UpdateRequestDto,
         @Param('id', ParseUUIDPipe) requestId: string
@@ -65,6 +69,7 @@ export class RequestsController {
     }
 
     @Delete(':id')
+    @Roles(Role.USER, Role.ADMIN)
     async deleteRequest(@Param('id', ParseUUIDPipe) requestId: string) {
         return await this.requestsService.deleteRequest(requestId)
     }
