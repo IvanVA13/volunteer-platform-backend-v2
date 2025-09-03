@@ -107,9 +107,13 @@ export class RequestsService {
         })
     }
 
-    async updateRequest(requestId: string, data: UpdateRequestDto) {
+    async updateRequest(
+        userId: string,
+        requestId: string,
+        data: UpdateRequestDto
+    ) {
         return await this.dbService.request.update({
-            where: { id: requestId },
+            where: { id: requestId, userId },
             data,
         })
     }
@@ -121,9 +125,10 @@ export class RequestsService {
         })
     }
 
-    async deleteRequest(requestId: string) {
-        return await this.dbService.request.delete({
-            where: { id: requestId },
+    async deleteRequest(userId: string, requestId: string) {
+        await this.dbService.request.delete({
+            where: { id: requestId, userId },
         })
+        return { message: 'Request deleted successfully' }
     }
 }
