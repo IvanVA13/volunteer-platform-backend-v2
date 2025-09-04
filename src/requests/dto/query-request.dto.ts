@@ -59,6 +59,6 @@ class QueryDto {
 
 export class QueryRequestDto extends IntersectionType(
     PartialType(OmitType(CreateRequestDto, ['title', 'description'] as const)),
-    UpdateRequestStatusDto,
+    PartialType(UpdateRequestStatusDto),
     QueryDto
 ) {}

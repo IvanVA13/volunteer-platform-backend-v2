@@ -1,20 +1,20 @@
-import { Injectable } from '@nestjs/common'
-
 import {
-    CreateRequestDto,
-    QueryRequestDto,
-    UpdateRequestDto,
-    UpdateRequestStatusDto,
-} from './dto'
-import { DEFAULT_LIMIT, DEFAULT_PAGE } from './constants'
-import { RequestOrderBy, SortOrder } from './types'
-import { Prisma } from 'generated/prisma'
+    ForbiddenException,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common'
+
+import { Prisma, RequestStatus, Role } from 'generated/prisma'
 import { PrismaService } from 'src/prisma.service'
+
+import { DEFAULT_LIMIT, DEFAULT_PAGE } from './constants'
+import { CreateRequestDto, QueryRequestDto, UpdateRequestDto } from './dto'
+import { RequestOrderBy, SortOrder } from './types'
 
 @Injectable()
 export class RequestsService {
-    constructor(private readonly dbService: PrismaService) {}
-    async getRequests(query: QueryRequestDto) {
+    constructor(private readonly prismaService: PrismaService) {}
+    async getRequests(query: QueryRequestDto, userId?: string) {
         const {
             page = DEFAULT_PAGE,
             limit = DEFAULT_LIMIT,
@@ -26,32 +26,17 @@ export class RequestsService {
             status,
         } = query
 
-        const where: Prisma.RequestWhereInput = {}
-
-        if (search) {
-            where.OR = [
-                {
-                    title: {
-                        contains: search,
-                        mode: 'insensitive',
-                    },
-                },
-                {
-                    description: {
-                        contains: search,
-                        mode: 'insensitive',
-                    },
-                },
-            ]
-        }
-        if (category) {
-            where.category = category
-        }
-        if (city) {
-            where.city = city
-        }
-        if (status) {
-            where.status = status
+        const where: Prisma.RequestWhereInput = {
+            ...(search && {
+                OR: [
+                    { title: { contains: search, mode: 'insensitive' } },
+                    { description: { contains: search, mode: 'insensitive' } },
+                ],
+            }),
+            ...(category && { category: { equals: category } }),
+            ...(city && { city: { equals: city } }),
+            ...(status && { status: { equals: status } }),
+            ...(userId && { userId: { equals: userId } }),
         }
 
         const orderBy: RequestOrderBy = []
@@ -61,17 +46,21 @@ export class RequestsService {
             orderBy.push({ createdAt: SortOrder.DESC })
         }
 
-        const take = +limit
+        const take = Number(limit)
         const skip = (page - 1) * take
 
-        const requests = await this.dbService.request.findMany({
-            where,
-            orderBy,
-            take,
-            skip,
-        })
+        const [requests, totalItems] = await this.prismaService.$transaction([
+            this.prismaService.request.findMany({
+                where,
+                orderBy,
+                take,
+                skip,
+            }),
 
-        const totalItems = await this.dbService.request.count({ where })
+            this.prismaService.request.count({
+                where,
+            }),
+        ])
         const totalPages = Math.ceil(totalItems / take)
 
         return {
@@ -85,24 +74,18 @@ export class RequestsService {
         }
     }
 
-    async getUserRequests(userId: string) {
-        const requests = await this.dbService.request.findMany({
-            where: { userId },
-        })
-
-        return {
-            data: requests,
-        }
-    }
-
     async getRequest(requestId: string) {
-        return await this.dbService.request.findUnique({
+        const request = await this.prismaService.request.findUnique({
             where: { id: requestId },
         })
+        if (!request) {
+            throw new NotFoundException('Request not found')
+        }
+        return request
     }
 
     async createRequest(userId: string, data: CreateRequestDto) {
-        return await this.dbService.request.create({
+        return await this.prismaService.request.create({
             data: { userId, ...data },
         })
     }
@@ -112,23 +95,44 @@ export class RequestsService {
         requestId: string,
         data: UpdateRequestDto
     ) {
-        return await this.dbService.request.update({
-            where: { id: requestId, userId },
+        await this.isAllowedToModifyRequest(userId, requestId)
+        return await this.prismaService.request.update({
+            where: {
+                id: requestId,
+            },
             data,
         })
     }
 
-    async updateRequestStatus(requestId: string, data: UpdateRequestStatusDto) {
-        return await this.dbService.request.update({
+    async updateRequestStatus(
+        userId: string,
+        requestId: string,
+        status: RequestStatus
+    ) {
+        await this.isAllowedToModifyRequest(userId, requestId)
+        return await this.prismaService.request.update({
             where: { id: requestId },
-            data,
+            data: { status },
         })
     }
 
     async deleteRequest(userId: string, requestId: string) {
-        await this.dbService.request.delete({
+        await this.isAllowedToModifyRequest(userId, requestId)
+        await this.prismaService.request.delete({
             where: { id: requestId, userId },
         })
         return { message: 'Request deleted successfully' }
+    }
+
+    private async isAllowedToModifyRequest(userId: string, requestId: string) {
+        const user = await this.prismaService.user.findUnique({
+            where: { id: userId },
+        })
+        const request = await this.getRequest(requestId)
+        if (user?.role === Role.USER && userId !== request?.userId) {
+            throw new ForbiddenException(
+                'You are not allowed to update this request'
+            )
+        }
     }
 }

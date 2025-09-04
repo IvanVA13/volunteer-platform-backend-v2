@@ -3,7 +3,6 @@ import {
     Delete,
     Get,
     HttpStatus,
-    NotFoundException,
     Param,
     ParseUUIDPipe,
     Patch,
@@ -50,6 +49,18 @@ const UnauthorizedResponse = {
     },
 }
 
+const ResponseParamId = {
+    name: 'id',
+    description: 'Request ID',
+    type: String,
+    example: 'ac0bec93-0dbb-46ba-b039-1d51214aa022',
+}
+
+const setOkResponse = (description: string) => ({
+    status: HttpStatus.OK,
+    description,
+})
+
 @ApiTags('Requests from users')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(AuthGuard)
@@ -63,10 +74,7 @@ export class RequestsController {
         description:
             'Get a list of all requests with optional filtering, pagination, and sorting',
     })
-    @ApiResponse({
-        status: HttpStatus.OK,
-        description: 'Requests successfully retrieved',
-    })
+    @ApiResponse(setOkResponse('Requests successfully retrieved'))
     @ApiResponse({
         status: HttpStatus.BAD_REQUEST,
         description: 'Invalid query data',
@@ -93,13 +101,13 @@ export class RequestsController {
         summary: 'Get user requests',
         description: 'Get a list of all user requests',
     })
-    @ApiResponse({
-        status: HttpStatus.OK,
-        description: 'Requests successfully retrieved',
-    })
+    @ApiResponse(setOkResponse('Requests successfully retrieved'))
     @ApiResponse(UnauthorizedResponse)
-    async getUserRequests(@CurrentUser() user: IUser) {
-        return await this.requestsService.getUserRequests(user.id)
+    async getUserRequests(
+        @CurrentUser() user: IUser,
+        @SoftQuery() query: QueryRequestDto
+    ) {
+        return await this.requestsService.getRequests(query, user.id)
     }
 
     @Get(':id')
@@ -107,16 +115,8 @@ export class RequestsController {
         summary: 'Get request by id',
         description: 'Get one request by its id',
     })
-    @ApiParam({
-        name: 'id',
-        description: 'Request ID',
-        type: String,
-        example: 'ac0bec93-0dbb-46ba-b039-1d51214aa022',
-    })
-    @ApiResponse({
-        status: HttpStatus.OK,
-        description: 'Request successfully retrieved',
-    })
+    @ApiParam(ResponseParamId)
+    @ApiResponse(setOkResponse('Request by id successfully retrieved'))
     @ApiResponse({
         status: HttpStatus.BAD_REQUEST,
         description: 'Invalid request id format',
@@ -148,12 +148,7 @@ export class RequestsController {
         },
     })
     async getRequest(@Param('id', ParseUUIDPipe) requestId: string) {
-        const result = await this.requestsService.getRequest(requestId)
-        if (!result) {
-            throw new NotFoundException('Request not found')
-        }
-
-        return result
+        return await this.requestsService.getRequest(requestId)
     }
 
     @Post()
@@ -183,6 +178,7 @@ export class RequestsController {
         },
     })
     @ApiResponse(UnauthorizedResponse)
+    @Roles(Role.USER)
     async createRequest(
         @StrictBody() data: CreateRequestDto,
         @CurrentUser() user: IUser
@@ -196,17 +192,9 @@ export class RequestsController {
         description:
             'Edit an existing request. You can update any field except the status.',
     })
-    @ApiParam({
-        name: 'id',
-        description: 'Request ID',
-        type: String,
-        example: 'ac0bec93-0dbb-46ba-b039-1d51214aa022',
-    })
+    @ApiParam(ResponseParamId)
     @ApiBody({ type: UpdateRequestDto })
-    @ApiResponse({
-        status: HttpStatus.OK,
-        description: 'Request updated successfully',
-    })
+    @ApiResponse(setOkResponse('Request updated successfully'))
     @ApiResponse({
         status: HttpStatus.BAD_REQUEST,
         description: 'Invalid request id format',
@@ -254,7 +242,7 @@ export class RequestsController {
             },
         },
     })
-    @Roles(Role.USER)
+    @Roles(Role.USER, Role.ADMIN)
     async updateRequest(
         @StrictBody() data: UpdateRequestDto,
         @CurrentUser() user: IUser,
@@ -273,17 +261,9 @@ export class RequestsController {
         description:
             'Edit status of an existing request. Only the status field can be updated.',
     })
-    @ApiParam({
-        name: 'id',
-        description: 'Request ID',
-        type: String,
-        example: 'ac0bec93-0dbb-46ba-b039-1d51214aa022',
-    })
+    @ApiParam(ResponseParamId)
     @ApiBody({ type: UpdateRequestStatusDto })
-    @ApiResponse({
-        status: HttpStatus.OK,
-        description: 'Request updated successfully',
-    })
+    @ApiResponse(setOkResponse('Request updated successfully'))
     @ApiResponse({
         status: HttpStatus.BAD_REQUEST,
         description: 'Invalid request id format',
@@ -309,7 +289,7 @@ export class RequestsController {
                 message: {
                     type: 'string',
                     example:
-                        'status must be one of the following values: pending, in_progress, completed, cancelled',
+                        'status must be one of the following values: active, in_progress, completed, cancelled',
                 },
                 error: { type: 'string', example: 'Bad Request' },
             },
@@ -331,12 +311,17 @@ export class RequestsController {
             },
         },
     })
+    @Roles(Role.USER, Role.ADMIN)
     async updateRequestStatus(
         @StrictBody() data: UpdateRequestStatusDto,
+        @CurrentUser() user: IUser,
         @Param('id', ParseUUIDPipe) requestId: string
     ) {
-        // todo one USER can not change status of another USER request
-        return await this.requestsService.updateRequestStatus(requestId, data)
+        return await this.requestsService.updateRequestStatus(
+            user.id,
+            requestId,
+            data.status
+        )
     }
 
     @Delete(':id')
@@ -345,16 +330,8 @@ export class RequestsController {
         description:
             'Delete an existing request. A user can only delete their own requests.',
     })
-    @ApiParam({
-        name: 'id',
-        description: 'Request ID',
-        type: String,
-        example: 'ac0bec93-0dbb-46ba-b039-1d51214aa022',
-    })
-    @ApiResponse({
-        status: HttpStatus.OK,
-        description: 'Request deleted successfully',
-    })
+    @ApiParam(ResponseParamId)
+    @ApiResponse(setOkResponse('Request deleted successfully'))
     @ApiResponse({
         status: HttpStatus.BAD_REQUEST,
         description: 'Invalid request id format',
@@ -402,7 +379,7 @@ export class RequestsController {
             },
         },
     })
-    @Roles(Role.USER)
+    @Roles(Role.USER, Role.ADMIN)
     async deleteRequest(
         @CurrentUser() user: IUser,
         @Param('id', ParseUUIDPipe) requestId: string
