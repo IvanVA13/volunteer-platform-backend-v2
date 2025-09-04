@@ -20,7 +20,6 @@ export class UpdateRequestStatusDto {
     @IsEnum(RequestStatus, {
         message: `Status should be one of: ${Object.values(RequestStatus).join(', ')}`,
     })
-    @IsEnum(RequestStatus)
     @IsNotEmpty()
     status: RequestStatus
 }

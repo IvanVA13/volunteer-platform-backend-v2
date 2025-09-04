@@ -7,11 +7,13 @@ import {
     NotFoundException,
 } from '@nestjs/common'
 
-import environments from 'src/environments'
 import { User } from '../../generated/prisma'
 import { PrismaService } from 'src/prisma.service'
 import { CreateUserDto } from './dto/create-user.dto'
 import { isEmpty } from 'lodash'
+import environment from 'src/environments'
+import { ACCESS_OPTIONS, REFRESH_OPTIONS } from './constants'
+import { JwtOptions, JwtPayload } from './types'
 
 @Injectable()
 export class UsersService {
@@ -28,7 +30,7 @@ export class UsersService {
         password,
         phoneNumber,
     }: CreateUserDto) {
-        const salt = await bcrypt.genSalt(Number(environments.SALT_PASSWORD))
+        const salt = await bcrypt.genSalt(Number(environment.SALT_PASSWORD))
 
         const passwordHash: string = bcrypt.hashSync(password, salt)
 
@@ -47,37 +49,31 @@ export class UsersService {
     async login(user: User, res: Response) {
         const payload = { id: user.id, role: user.role }
 
-        const accessToken = this.jwtService.sign(payload, { expiresIn: '5m' })
-        const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' })
+        const accessToken = this.signToken(payload, ACCESS_OPTIONS)
+        const refreshToken = this.signToken(payload, REFRESH_OPTIONS)
 
-        const hashedToken = bcrypt.hashSync(
-            refreshToken,
-            Number(environments.SALT_PASSWORD)
-        )
+        const hashedToken = this.hashToken(refreshToken)
 
         await this.prisma.user.update({
             where: { id: user.id },
             data: { refreshToken: hashedToken },
         })
 
-        res.cookie('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'strict',
-            path: '/',
-        })
+        this.setRefreshTokenCookie(res, refreshToken)
 
         return { access_token: accessToken }
     }
 
     async refreshTokens(refreshToken: string, res: Response) {
         try {
-            const payload: User = this.jwtService.verify(refreshToken)
+            const payload: User = this.jwtService.verify(
+                refreshToken,
+                REFRESH_OPTIONS
+            )
 
             const user = await this.prisma.user.findUnique({
                 where: {
                     id: payload.id,
-                    refreshToken,
                 },
             })
 
@@ -88,9 +84,10 @@ export class UsersService {
             if (!user.refreshToken) {
                 throw new UnauthorizedException('Invalid refresh token')
             }
+
             const isRefreshTokenValid = await bcrypt.compare(
-                user.refreshToken,
-                refreshToken
+                refreshToken,
+                user.refreshToken
             )
 
             if (!isRefreshTokenValid) {
@@ -103,27 +100,18 @@ export class UsersService {
 
             const newPayload = { id: user.id, role: user.role }
 
-            const newAccessToken = this.jwtService.sign(newPayload, {
-                expiresIn: '5m',
-            })
+            const newAccessToken = this.signToken(newPayload, ACCESS_OPTIONS)
+            const newRefreshToken = this.signToken(newPayload, REFRESH_OPTIONS)
 
-            const newRefreshToken = this.jwtService.sign(newPayload, {
-                expiresIn: '7d',
-            })
+            const newHashedRefreshToken = this.hashToken(newRefreshToken)
 
             await this.prisma.user.update({
                 where: { id: user.id },
-                data: { refreshToken: newRefreshToken },
+                data: { refreshToken: newHashedRefreshToken },
             })
+            this.setRefreshTokenCookie(res, newRefreshToken)
 
-            res.cookie('jwtToken', newRefreshToken, {
-                httpOnly: true,
-                secure: true,
-                sameSite: 'strict',
-                maxAge: 7 * 24 * 60 * 60 * 1000,
-            })
-
-            return { accessToken: newAccessToken }
+            return { access_token: newAccessToken }
         } catch (err) {
             console.error(err)
             throw new UnauthorizedException('Invalid or expired refresh token')
@@ -134,8 +122,12 @@ export class UsersService {
         return this.prisma.user.findUnique({ where: { email } })
     }
 
-    findOne(id: string) {
-        return this.prisma.user.findUnique({ where: { id } })
+    async findOne(id: string) {
+        const user = await this.prisma.user.findUnique({ where: { id } })
+        if (!user) {
+            return null
+        }
+        return this.exclude(user, ['password', 'refreshToken'])
     }
 
     findUserByPhone(phone: string) {
@@ -150,6 +142,32 @@ export class UsersService {
         return this.prisma.user.update({
             where: { id },
             data: { refreshToken: '' },
+        })
+    }
+
+    private exclude<User, Key extends keyof User>(
+        user: User,
+        keys: Key[]
+    ): Omit<User, Key> {
+        for (const key of keys) {
+            delete user[key]
+        }
+        return user
+    }
+
+    private hashToken(token: string) {
+        return bcrypt.hashSync(token, Number(environment.SALT_PASSWORD))
+    }
+
+    private signToken(payload: JwtPayload, options: JwtOptions) {
+        return this.jwtService.sign(payload, options)
+    }
+
+    private setRefreshTokenCookie(res: Response, token: string) {
+        res.cookie('refreshToken', token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'strict',
         })
     }
 }
