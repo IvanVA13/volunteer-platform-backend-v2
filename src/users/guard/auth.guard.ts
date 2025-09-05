@@ -7,9 +7,10 @@ import {
 import { Request } from 'express'
 import { JwtService } from '@nestjs/jwt'
 import { Reflector } from '@nestjs/core'
-import environment from 'src/environments'
+
 import { Role, User } from '../../../generated/prisma'
 import { ROLES_KEY } from 'src/decorators/roles.decorator'
+import { ACCESS_OPTIONS } from '../constants'
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -31,9 +32,10 @@ export class AuthGuard implements CanActivate {
             throw new UnauthorizedException()
         }
         try {
-            const payload: User = await this.jwtService.verifyAsync(token, {
-                secret: environment.JWT_SECRET,
-            })
+            const payload: User = await this.jwtService.verifyAsync(
+                token,
+                ACCESS_OPTIONS
+            )
 
             request['user'] = payload
 

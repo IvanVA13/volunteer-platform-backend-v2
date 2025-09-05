@@ -1,11 +1,15 @@
-import { IntersectionType, OmitType } from '@nestjs/mapped-types'
 import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator'
 
 import { UpdateRequestStatusDto } from './update-request.dto'
 import { Type } from 'class-transformer'
 import { CreateRequestDto } from './create-request.dto'
 import { SortOrder } from '../types'
-import { ApiPropertyOptional, PartialType } from '@nestjs/swagger'
+import {
+    ApiPropertyOptional,
+    PartialType,
+    IntersectionType,
+    OmitType,
+} from '@nestjs/swagger'
 
 class QueryDto {
     @ApiPropertyOptional({

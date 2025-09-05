@@ -209,20 +209,22 @@ export class UsersController {
             },
         },
     })
-    async refreshTokens(@Req() req: Request, @Res() res: Response) {
+    async refreshTokens(
+        @Req() req: Request,
+        @Res({ passthrough: true }) res: Response
+    ) {
         const refreshToken = req['cookies']['refreshToken'] as string
 
         if (!refreshToken) {
             throw new BadRequestException('User is not authorized')
         }
-
-        return this.usersService.refreshTokens(refreshToken, res)
+        return await this.usersService.refreshTokens(refreshToken, res)
     }
 
     @Get('/profile')
     @UseGuards(AuthGuard)
     @Roles(Role.USER, Role.ADMIN, Role.VOLUNTEER)
-    @ApiBearerAuth('JWT-auth')
+    @ApiBearerAuth()
     @ApiOperation({
         summary: 'Get current user profile',
         description:
@@ -250,7 +252,7 @@ export class UsersController {
 
     @Patch(':id')
     @UseGuards(AuthGuard)
-    @ApiBearerAuth('JWT-auth')
+    @ApiBearerAuth()
     @ApiOperation({
         summary: 'Update user profile',
         description: 'Update user information by ID',
@@ -280,7 +282,7 @@ export class UsersController {
 
     @Post('/logout')
     @UseGuards(AuthGuard)
-    @ApiBearerAuth('JWT-auth')
+    @ApiBearerAuth()
     @ApiOperation({
         summary: 'Logout user',
         description: 'Clear refresh token and logout the authenticated user',
