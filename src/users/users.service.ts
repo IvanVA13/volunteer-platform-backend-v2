@@ -34,7 +34,7 @@ export class UsersService {
 
         const passwordHash: string = bcrypt.hashSync(password, salt)
 
-        return this.prisma.user.create({
+        const user = await this.prisma.user.create({
             data: {
                 city,
                 role,
@@ -44,6 +44,7 @@ export class UsersService {
                 phone: phoneNumber,
             },
         })
+        return this.exclude(user, ['password', 'refreshToken'])
     }
 
     async login(user: User, res: Response) {

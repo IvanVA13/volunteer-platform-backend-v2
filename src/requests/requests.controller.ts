@@ -62,7 +62,7 @@ const setOkResponse = (description: string) => ({
 })
 
 @ApiTags('Requests from users')
-@ApiBearerAuth('JWT-auth')
+@ApiBearerAuth()
 @UseGuards(AuthGuard)
 @Controller('requests')
 export class RequestsController {

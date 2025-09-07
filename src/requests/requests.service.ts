@@ -24,6 +24,8 @@ export class RequestsService {
             category,
             city,
             status,
+            createdAtFrom,
+            createdAtTo,
         } = query
 
         const where: Prisma.RequestWhereInput = {
@@ -33,10 +35,14 @@ export class RequestsService {
                     { description: { contains: search, mode: 'insensitive' } },
                 ],
             }),
-            ...(category && { category: { equals: category } }),
-            ...(city && { city: { equals: city } }),
-            ...(status && { status: { equals: status } }),
-            ...(userId && { userId: { equals: userId } }),
+
+            ...{ category: { in: category } },
+            ...{ city: { equals: city } },
+            ...{ status: { in: status } },
+            ...{ userId: { equals: userId } },
+            ...{
+                createdAt: { gte: createdAtFrom, lte: createdAtTo },
+            },
         }
 
         const orderBy: RequestOrderBy = []
@@ -52,6 +58,16 @@ export class RequestsService {
         const [requests, totalItems] = await this.prismaService.$transaction([
             this.prismaService.request.findMany({
                 where,
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            phone: true,
+                        },
+                    },
+                },
                 orderBy,
                 take,
                 skip,

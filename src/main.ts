@@ -13,6 +13,16 @@ async function bootstrap() {
     const config = new DocumentBuilder()
         .setTitle('Razom swagger API')
         .setDescription('The razom app API description')
+        .addBearerAuth()
+        .addCookieAuth(
+            'refreshToken',
+            {
+                type: 'apiKey',
+                in: 'cookie',
+                name: 'refreshToken',
+            },
+            'refreshToken'
+        )
         .setVersion('1.0')
         .build()
     const documentFactory = () => SwaggerModule.createDocument(app, config)
