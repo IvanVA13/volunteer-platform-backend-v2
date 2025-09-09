@@ -35,7 +35,7 @@ async function bootstrap() {
     app.use(cookieParser())
     SwaggerModule.setup('api', app, documentFactory)
     app.setGlobalPrefix('api')
-    await app.listen(environment.PORT)
+    await app.listen(environment.PORT || 5000)
 }
 
 bootstrap()

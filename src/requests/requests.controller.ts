@@ -18,6 +18,7 @@ import {
     QueryRequestDto,
     UpdateRequestDto,
     UpdateRequestStatusDto,
+    QueryResponseDto,
 } from './dto'
 
 import { SoftQuery, StrictBody } from 'src/common/pipes'
@@ -72,7 +73,7 @@ export class RequestsController {
     @ApiOperation({
         summary: 'Get all requests',
         description:
-            'Get a list of all requests with optional filtering, pagination, and sorting',
+            'Get a list of all requests with optional filtering, pagination, and sorting. Includes response information showing if request has been accepted by a volunteer.',
     })
     @ApiResponse(setOkResponse('Requests successfully retrieved'))
     @ApiResponse({
@@ -99,9 +100,10 @@ export class RequestsController {
     @Get('my')
     @ApiOperation({
         summary: 'Get user requests',
-        description: 'Get a list of all user requests',
+        description:
+            'Get a list of all user requests with response information',
     })
-    @ApiResponse(setOkResponse('Requests successfully retrieved'))
+    @ApiResponse(setOkResponse('User requests successfully retrieved'))
     @ApiResponse(UnauthorizedResponse)
     async getUserRequests(
         @CurrentUser() user: IUser,
@@ -110,10 +112,27 @@ export class RequestsController {
         return await this.requestsService.getRequests(query, user.id)
     }
 
+    @Get('responses/my')
+    @ApiOperation({
+        summary: 'Get volunteer responses',
+        description:
+            'Get a list of all requests the current volunteer has accepted',
+    })
+    @ApiResponse(setOkResponse('Volunteer responses successfully retrieved'))
+    @ApiResponse(UnauthorizedResponse)
+    @Roles(Role.VOLUNTEER, Role.ADMIN)
+    async getVolunteerResponses(
+        @CurrentUser() user: IUser,
+        @SoftQuery() query: QueryResponseDto
+    ) {
+        return await this.requestsService.getVolunteerResponses(user.id, query)
+    }
+
     @Get(':id')
     @ApiOperation({
         summary: 'Get request by id',
-        description: 'Get one request by its id',
+        description:
+            'Get one request by its id with volunteer response information',
     })
     @ApiParam(ResponseParamId)
     @ApiResponse(setOkResponse('Request by id successfully retrieved'))
@@ -148,7 +167,53 @@ export class RequestsController {
         },
     })
     async getRequest(@Param('id', ParseUUIDPipe) requestId: string) {
-        return await this.requestsService.getRequest(requestId)
+        return await this.requestsService.getRequestWithResponses(requestId)
+    }
+
+    @Get(':id/responses')
+    @ApiOperation({
+        summary: 'Get request responses',
+        description:
+            'Get volunteer response for a specific request (only one volunteer per request)',
+    })
+    @ApiParam(ResponseParamId)
+    @ApiResponse(setOkResponse('Request responses successfully retrieved'))
+    @ApiResponse({
+        status: HttpStatus.BAD_REQUEST,
+        description: 'Invalid request id format',
+        schema: {
+            type: 'object',
+            properties: {
+                statusCode: { type: 'number', example: 400 },
+                message: {
+                    type: 'string',
+                    example: 'Request id must be a UUID',
+                },
+                error: { type: 'string', example: 'Bad Request' },
+            },
+        },
+    })
+    @ApiResponse({
+        status: HttpStatus.NOT_FOUND,
+        description: 'Request not found',
+        schema: {
+            type: 'object',
+            properties: {
+                statusCode: { type: 'number', example: 404 },
+                message: {
+                    type: 'string',
+                    example: 'Request not found',
+                },
+                error: { type: 'string', example: 'Not Found' },
+            },
+        },
+    })
+    @ApiResponse(UnauthorizedResponse)
+    async getRequestResponses(
+        @Param('id', ParseUUIDPipe) requestId: string,
+        @SoftQuery() query: QueryResponseDto
+    ) {
+        return await this.requestsService.getRequestResponses(requestId, query)
     }
 
     @Post()
@@ -184,6 +249,105 @@ export class RequestsController {
         @CurrentUser() user: IUser
     ) {
         return await this.requestsService.createRequest(user.id, data)
+    }
+
+    @Post(':id/respond')
+    @ApiOperation({
+        summary: 'Accept a request',
+        description:
+            'Volunteer accepts a help request. Only one volunteer can accept per request. Request status will change to IN_PROGRESS.',
+    })
+    @ApiParam(ResponseParamId)
+    @ApiResponse({
+        status: HttpStatus.CREATED,
+        description: 'Request successfully accepted',
+    })
+    @ApiResponse({
+        status: HttpStatus.BAD_REQUEST,
+        description:
+            'Request already accepted, invalid request, or cannot accept own request',
+        schema: {
+            type: 'object',
+            properties: {
+                statusCode: { type: 'number', example: 400 },
+                message: {
+                    type: 'string',
+                    example:
+                        'This request has already been accepted by another volunteer',
+                },
+                error: { type: 'string', example: 'Bad Request' },
+            },
+        },
+    })
+    @ApiResponse({
+        status: HttpStatus.NOT_FOUND,
+        description: 'Request not found',
+        schema: {
+            type: 'object',
+            properties: {
+                statusCode: { type: 'number', example: 404 },
+                message: {
+                    type: 'string',
+                    example: 'Request not found',
+                },
+                error: { type: 'string', example: 'Not Found' },
+            },
+        },
+    })
+    @ApiResponse(UnauthorizedResponse)
+    @Roles(Role.VOLUNTEER, Role.ADMIN)
+    async respondToRequest(
+        @Param('id', ParseUUIDPipe) requestId: string,
+        @CurrentUser() user: IUser
+    ) {
+        return await this.requestsService.createResponse(requestId, user.id)
+    }
+
+    @Delete(':id/respond')
+    @ApiOperation({
+        summary: 'Withdraw acceptance',
+        description:
+            'Volunteer withdraws their acceptance of a request. Request status returns to ACTIVE and becomes available for other volunteers.',
+    })
+    @ApiParam(ResponseParamId)
+    @ApiResponse(setOkResponse('Response successfully withdrawn'))
+    @ApiResponse({
+        status: HttpStatus.BAD_REQUEST,
+        description: 'Invalid request id format',
+        schema: {
+            type: 'object',
+            properties: {
+                statusCode: { type: 'number', example: 400 },
+                message: {
+                    type: 'string',
+                    example: 'Request id must be a UUID',
+                },
+                error: { type: 'string', example: 'Bad Request' },
+            },
+        },
+    })
+    @ApiResponse({
+        status: HttpStatus.NOT_FOUND,
+        description: 'Request or response not found',
+        schema: {
+            type: 'object',
+            properties: {
+                statusCode: { type: 'number', example: 404 },
+                message: {
+                    type: 'string',
+                    example: 'You have not responded to this request',
+                },
+                error: { type: 'string', example: 'Not Found' },
+            },
+        },
+    })
+    @ApiResponse(UnauthorizedResponse)
+    @Roles(Role.VOLUNTEER, Role.ADMIN)
+    async withdrawResponse(
+        @Param('id', ParseUUIDPipe) requestId: string,
+        @CurrentUser() user: IUser
+    ) {
+        return await this.requestsService.deleteResponse(requestId, user.id)
     }
 
     @Patch(':id')
@@ -229,7 +393,7 @@ export class RequestsController {
     @ApiResponse(UnauthorizedResponse)
     @ApiResponse({
         status: HttpStatus.NOT_FOUND,
-        description: 'User not found',
+        description: 'Request not found',
         schema: {
             type: 'object',
             properties: {
@@ -263,7 +427,7 @@ export class RequestsController {
     })
     @ApiParam(ResponseParamId)
     @ApiBody({ type: UpdateRequestStatusDto })
-    @ApiResponse(setOkResponse('Request updated successfully'))
+    @ApiResponse(setOkResponse('Request status updated successfully'))
     @ApiResponse({
         status: HttpStatus.BAD_REQUEST,
         description: 'Invalid request id format',
@@ -281,7 +445,7 @@ export class RequestsController {
     })
     @ApiResponse({
         status: HttpStatus.BAD_REQUEST,
-        description: 'Invalid data',
+        description: 'Invalid status value',
         schema: {
             type: 'object',
             properties: {
@@ -348,18 +512,17 @@ export class RequestsController {
         },
     })
     @ApiResponse({
-        status: HttpStatus.BAD_REQUEST,
-        description: 'Invalid data',
+        status: HttpStatus.FORBIDDEN,
+        description: 'Cannot delete request',
         schema: {
             type: 'object',
             properties: {
-                statusCode: { type: 'number', example: 400 },
+                statusCode: { type: 'number', example: 403 },
                 message: {
                     type: 'string',
-                    example:
-                        'status must be one of the following values: pending, in_progress, completed, cancelled',
+                    example: 'You are not allowed to update this request',
                 },
-                error: { type: 'string', example: 'Bad Request' },
+                error: { type: 'string', example: 'Forbidden' },
             },
         },
     })
