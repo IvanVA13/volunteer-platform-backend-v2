@@ -25,6 +25,7 @@ async function bootstrap() {
         )
         .setVersion('1.0')
         .build()
+    app.enableCors()
     const documentFactory = () => SwaggerModule.createDocument(app, config)
     app.useGlobalPipes(
         new ValidationPipe({
@@ -35,7 +36,7 @@ async function bootstrap() {
     app.use(cookieParser())
     SwaggerModule.setup('api', app, documentFactory)
     app.setGlobalPrefix('api')
-    await app.listen(environment.PORT || 5000)
+    await app.listen(environment.PORT)
 }
 
 bootstrap()
