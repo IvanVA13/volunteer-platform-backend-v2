@@ -9,6 +9,10 @@ import { PrismaClientExceptionFilter } from './common/filters/prisma-exception.f
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule)
+    app.enableCors({
+        origin: [environment.CORS_ORIGIN, 'http://localhost:3000'],
+        credentials: true,
+    })
 
     const config = new DocumentBuilder()
         .setTitle('Razom swagger API')
@@ -25,7 +29,6 @@ async function bootstrap() {
         )
         .setVersion('1.0')
         .build()
-    app.enableCors()
     const documentFactory = () => SwaggerModule.createDocument(app, config)
     app.useGlobalPipes(
         new ValidationPipe({
